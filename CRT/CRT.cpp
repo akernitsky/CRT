@@ -8,6 +8,7 @@
 #include <system_error>
 #include <stdexcept>
 #include "resource.h"
+#include "Audio.h"
 
 #pragma comment(lib,"d3d11.lib")
 #pragma comment(lib,"dxgi.lib")
@@ -16,6 +17,8 @@
 using namespace Microsoft::WRL;
 
 HWND g_hwnd = nullptr;
+Audio g_audio;
+bool g_audioAvailable = false;
 
 ComPtr<ID3D11Device> g_device;
 ComPtr<ID3D11DeviceContext> g_context;
@@ -234,26 +237,39 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 			{ 
 				g_channel = (g_channel + 1) % 4; 
 				g_channelTimer = kChannelTimerDuration;
+				if (g_power > 0 && !g_poweringOff) g_audio.Play(Audio::Channel);
 				break;
 			}
 			case VK_DOWN: 
 			{
 				g_channel = (g_channel - 1 + 4) % 4; 
 				g_channelTimer = kChannelTimerDuration; 
+				if (g_power > 0 && !g_poweringOff) g_audio.Play(Audio::Channel);
 				break;
 			}
 			case VK_SPACE:
 			{
+				if (l & (1LL << 30)) break;
 				if (g_poweringOff && g_power <= 0.01f) {
 					g_poweringOff = false;
 					g_power = kInitialPower;
 					g_channelTimer = kChannelTimerDuration;
+					g_audio.Play(Audio::PowerOn);
 				}
 				else {
+					if (!g_poweringOff) g_audio.Play(Audio::PowerOff);
 					g_poweringOff = true;
 				}
 				break;
 			}
+			case 'M':
+				if (!(l & (1LL << 30)))
+				{
+					g_audio.ToggleMute();
+					SetWindowText(h, !g_audioAvailable ? L"CRT TV - audio unavailable" :
+						g_audio.Muted() ? L"CRT TV - muted (M)" : L"CRT TV");
+				}
+				break;
 		}
 	}
 
@@ -278,6 +294,10 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 	ShowWindow(g_hwnd, SW_SHOW);
 
 	InitD3D();
+	g_audioAvailable = g_audio.Init();
+	if (!g_audioAvailable) SetWindowText(g_hwnd, L"CRT TV - audio unavailable");
+	g_audio.Update(g_channel, g_power);
+	g_audio.Play(Audio::PowerOn);
 
 	auto start = std::chrono::high_resolution_clock::now();
 	auto prev = start;
@@ -305,6 +325,7 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 
 		if (g_channelTimer > 0)
 			g_channelTimer = std::max<float>(0.0f, g_channelTimer - 1.0f * dt);
+		g_audio.Update(g_channel, g_power);
 
 		if (g_cb)
 		{
@@ -312,8 +333,7 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 			GetClientRect(g_hwnd, &rc);
 			if (IsIconic(g_hwnd) || rc.right <= 0 || rc.bottom <= 0)
 			{
-				WaitMessage();
-				prev = std::chrono::high_resolution_clock::now();
+				MsgWaitForMultipleObjects(0, nullptr, FALSE, 16, QS_ALLINPUT);
 				continue;
 			}
 			ResizeD3D(rc.right, rc.bottom);

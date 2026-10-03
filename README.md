@@ -19,6 +19,9 @@ The project selects the 64-bit compiler tools. Direct3D feature level 11.0 hardw
 - Up / Down: switch between four channels.
 - Space: power off; press again after the fade completes to power on.
 - Escape: exit.
+- M: mute/unmute all sound (the title shows the muted state).
+
+Audio is generated with XAudio2: channels 1–3 have progressively quieter static, channel 4 plays a steady 1 kHz test tone, and channel/power changes play short effects. Both static and the test tone fade with screen power and obey the M mute control. If no audio device is available, the simulator continues silently and reports this in the title.
 
 The window supports resizing and minimize/restore.
 
