@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="CRT/CRT.vcxproj" Id="e09b35eb-8ce2-4942-84b8-f8e9b7b711db" />
+</Solution>

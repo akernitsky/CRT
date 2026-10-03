@@ -1,0 +1,16 @@
+.vs/
+**/Debug/
+**/Release/
+**/x64/
+**/x86/
+*.user
+*.suo
+*.aps
+*.APS
+*.cso
+*.obj
+*.pdb
+*.ilk
+*.log
+*.tlog/
+CRT/binary3.bin
