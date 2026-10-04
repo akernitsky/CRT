@@ -1,0 +1,122 @@
+{
+  "captured_on": "2026-10-04",
+  "build": "Debug x64, volume-osd-fixed",
+  "crop": [
+    300,
+    29,
+    2280,
+    1380
+  ],
+  "screenshots": {
+    "philips.png": "000-philips.png",
+    "ueit.png": "030-ueit-clean.png",
+    "danish-clock.png": "039-clock-live.png",
+    "volume.png": "023-clock.png"
+  },
+  "animation": [
+    {
+      "file": "000-philips.png",
+      "duration_ms": 1200
+    },
+    {
+      "file": "003-snow.png",
+      "duration_ms": 150
+    },
+    {
+      "file": "004-snow.png",
+      "duration_ms": 150
+    },
+    {
+      "file": "005-snow.png",
+      "duration_ms": 150
+    },
+    {
+      "file": "006-snow.png",
+      "duration_ms": 150
+    },
+    {
+      "file": "007-snow.png",
+      "duration_ms": 150
+    },
+    {
+      "file": "008-snow.png",
+      "duration_ms": 150
+    },
+    {
+      "file": "009-snow.png",
+      "duration_ms": 150
+    },
+    {
+      "file": "010-snow.png",
+      "duration_ms": 150
+    },
+    {
+      "file": "034-clock-live.png",
+      "duration_ms": 500
+    },
+    {
+      "file": "035-clock-live.png",
+      "duration_ms": 500
+    },
+    {
+      "file": "036-clock-live.png",
+      "duration_ms": 500
+    },
+    {
+      "file": "037-clock-live.png",
+      "duration_ms": 500
+    },
+    {
+      "file": "038-clock-live.png",
+      "duration_ms": 500
+    },
+    {
+      "file": "039-clock-live.png",
+      "duration_ms": 500
+    },
+    {
+      "file": "030-ueit-clean.png",
+      "duration_ms": 1400
+    },
+    {
+      "file": "025-tit0249.png",
+      "duration_ms": 1400
+    },
+    {
+      "file": "027-ghost.png",
+      "duration_ms": 1400
+    },
+    {
+      "file": "013-clock.png",
+      "duration_ms": 700
+    },
+    {
+      "file": "019-clock.png",
+      "duration_ms": 300
+    },
+    {
+      "file": "020-clock.png",
+      "duration_ms": 300
+    },
+    {
+      "file": "021-clock.png",
+      "duration_ms": 300
+    },
+    {
+      "file": "022-clock.png",
+      "duration_ms": 300
+    },
+    {
+      "file": "023-clock.png",
+      "duration_ms": 300
+    },
+    {
+      "file": "001-mute.png",
+      "duration_ms": 1200
+    },
+    {
+      "file": "002-volume.png",
+      "duration_ms": 1000
+    }
+  ]
+}

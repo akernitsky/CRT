@@ -31,6 +31,8 @@ UINT g_renderWidth = 0;
 UINT g_renderHeight = 0;
 
 
+constexpr int kChannelCount = 10;
+constexpr int kChannelPrograms[kChannelCount] = { 5, 0, 8, 3, 1, 6, 9, 2, 7, 4 };
 constexpr float kInitialPower = 1.0f;
 constexpr float kPowerFadePerSecond = 1.0f;
 constexpr float kChannelTimerDuration = 3.0f;
@@ -39,6 +41,10 @@ int g_channel = 0;
 float g_power = kInitialPower;
 bool g_poweringOff = false;
 float g_channelTimer = kChannelTimerDuration;
+constexpr int kMaxVolume = 40;
+int g_volume = kMaxVolume;
+int g_previousVolume = kMaxVolume;
+float g_volumeTimer = 0;
 
 struct CB
 {
@@ -49,8 +55,20 @@ struct CB
 
 	float power;
 	float channelTimer;
-	float padding[2];
+	float clockSeconds;
+	float channelNumber;
+	float volume;
+	float volumeTimer;
+	float reserved[2];
 };
+
+void ApplyVolume(HWND window)
+{
+	g_audio.SetVolume(static_cast<float>(g_volume) / kMaxVolume);
+	g_volumeTimer = 3.0f;
+	SetWindowText(window, !g_audioAvailable ? L"CRT TV - audio unavailable" :
+		g_volume == 0 ? L"CRT TV - muted (M)" : L"CRT TV");
+}
 
 void CheckHR(HRESULT hr, const char* msg)
 {
@@ -158,7 +176,7 @@ void ResizeD3D(UINT width, UINT height)
 
 void InitD3D()
 {
-	RECT rc; 
+	RECT rc;
 	GetClientRect(g_hwnd, &rc);
 
 	DXGI_SWAP_CHAIN_DESC sd = {};
@@ -199,7 +217,7 @@ void InitD3D()
 	g_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	ComPtr<ID3DBlob> vs, ps, err;
-	
+
 	LoadVertexShaderFromResource(GetModuleHandle(nullptr), g_device.Get(), &g_vs);
 	LoadPixelShaderFromResource(GetModuleHandle(nullptr), g_device.Get(), &g_ps);
 
@@ -229,24 +247,30 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 		return TRUE;
 	case WM_KEYDOWN:
 		switch(w)
-		{	
+		{
 			case VK_ESCAPE:
 				PostQuitMessage(0);
 				break;
-			case VK_UP:
-			{ 
-				g_channel = (g_channel + 1) % 4; 
+			case VK_RIGHT:
+			{
+				g_channel = (g_channel + 1) % kChannelCount;
 				g_channelTimer = kChannelTimerDuration;
 				if (g_power > 0 && !g_poweringOff) g_audio.Play(Audio::Channel);
 				break;
 			}
-			case VK_DOWN: 
+			case VK_LEFT:
 			{
-				g_channel = (g_channel - 1 + 4) % 4; 
-				g_channelTimer = kChannelTimerDuration; 
+				g_channel = (g_channel - 1 + kChannelCount) % kChannelCount;
+				g_channelTimer = kChannelTimerDuration;
 				if (g_power > 0 && !g_poweringOff) g_audio.Play(Audio::Channel);
 				break;
 			}
+			case VK_UP:
+			case VK_DOWN:
+				g_volume = std::clamp(g_volume + (w == VK_UP ? 1 : -1), 0, kMaxVolume);
+				if (g_volume > 0) g_previousVolume = g_volume;
+				ApplyVolume(h);
+				break;
 			case VK_SPACE:
 			{
 				if (l & (1LL << 30)) break;
@@ -265,9 +289,9 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 			case 'M':
 				if (!(l & (1LL << 30)))
 				{
-					g_audio.ToggleMute();
-					SetWindowText(h, !g_audioAvailable ? L"CRT TV - audio unavailable" :
-						g_audio.Muted() ? L"CRT TV - muted (M)" : L"CRT TV");
+					if (g_volume > 0) { g_previousVolume = g_volume; g_volume = 0; }
+					else g_volume = g_previousVolume;
+					ApplyVolume(h);
 				}
 				break;
 		}
@@ -295,8 +319,9 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 
 	InitD3D();
 	g_audioAvailable = g_audio.Init();
+	g_audio.SetVolume(static_cast<float>(g_volume) / kMaxVolume);
 	if (!g_audioAvailable) SetWindowText(g_hwnd, L"CRT TV - audio unavailable");
-	g_audio.Update(g_channel, g_power);
+	g_audio.Update(kChannelPrograms[g_channel], g_power);
 	g_audio.Play(Audio::PowerOn);
 
 	auto start = std::chrono::high_resolution_clock::now();
@@ -325,11 +350,15 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 
 		if (g_channelTimer > 0)
 			g_channelTimer = std::max<float>(0.0f, g_channelTimer - 1.0f * dt);
-		g_audio.Update(g_channel, g_power);
+		g_volumeTimer = std::max<float>(0.0f, g_volumeTimer - dt);
+		SYSTEMTIME localTime;
+		GetLocalTime(&localTime);
+		const int clockSeconds = localTime.wHour * 3600 + localTime.wMinute * 60 + localTime.wSecond;
+		g_audio.Update(kChannelPrograms[g_channel], g_power, clockSeconds);
 
 		if (g_cb)
 		{
-			RECT rc; 
+			RECT rc;
 			GetClientRect(g_hwnd, &rc);
 			if (IsIconic(g_hwnd) || rc.right <= 0 || rc.bottom <= 0)
 			{
@@ -344,10 +373,14 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 			cb->time = t;
 			cb->width = static_cast<float>(rc.right);
 			cb->height = static_cast<float>(rc.bottom);
-			cb->channel = static_cast<float>(g_channel);
+			cb->channel = static_cast<float>(kChannelPrograms[g_channel]);
 			cb->power = g_power;
 			cb->channelTimer = g_channelTimer;
-			cb->padding[0] = cb->padding[1] = 0;
+			cb->clockSeconds = static_cast<float>(clockSeconds);
+			cb->channelNumber = static_cast<float>(g_channel);
+			cb->volume = static_cast<float>(g_volume) / kMaxVolume;
+			cb->volumeTimer = g_volumeTimer;
+			cb->reserved[0] = cb->reserved[1] = 0;
 
 			g_context->Unmap(g_cb.Get(), 0);
 		}
