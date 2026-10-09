@@ -4,6 +4,8 @@ Capture the final running application before every merge, as required by the roo
 
 The current GIF is an edited sequence of real application captures, not a simulated render. It is silent and sampled at a lower frame rate than the app; pauses between demonstrations are shortened.
 
+The channel 11 capture set includes the furnished room, independent inner-TV power off/on, channel switching, moving static and clock hands, volume and mute, plus the original full-window broadcasts. `capture.json` records the SHA-256 of the Release x64 executable used. The crop removes window chrome and the pointer highlight near the top edge. Raw frames remain under `chart-check/media-frames/`.
+
 Update `capture.json` to reference the new raw frames. Its `crop` rectangle removes window chrome and excess side margins. `screenshots` maps output PNG names to captured frames, and `animation` lists the GIF sequence with durations in milliseconds. Check the actual contents of every selected frame, particularly if the user interacted during capture.
 
 With Python and Pillow available, package the images from the repository root:
