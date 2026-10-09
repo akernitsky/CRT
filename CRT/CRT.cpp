@@ -10,6 +10,7 @@
 #include <future>
 #include <memory>
 #include <cmath>
+#include <string>
 #include "resource.h"
 #include "Audio.h"
 
@@ -43,13 +44,18 @@ UINT g_renderWidth = 0;
 UINT g_renderHeight = 0;
 
 
-constexpr int kChannelCount = 10;
-constexpr int kChannelPrograms[kChannelCount] = { 5, 0, 8, 3, 1, 6, 9, 2, 7, 4 };
+constexpr int kBroadcastCount = 10;
+constexpr int kRoomChannel = kBroadcastCount;
+constexpr int kChannelCount = kBroadcastCount + 1;
+constexpr int kChannelPrograms[kBroadcastCount] = { 5, 0, 8, 3, 1, 6, 9, 2, 7, 4 };
 constexpr float kInitialPower = 1.0f;
 constexpr float kPowerFadePerSecond = 1.0f;
 constexpr float kChannelTimerDuration = 3.0f;
 
 int g_channel = 0;
+int g_roomChannel = 0;
+float g_roomPower = kInitialPower;
+bool g_roomPoweringOff = false;
 float g_power = kInitialPower;
 bool g_poweringOff = false;
 float g_channelTimer = kChannelTimerDuration;
@@ -87,6 +93,32 @@ void CheckHR(HRESULT hr, const char* msg)
 {
 	if (FAILED(hr))
 		throw std::system_error{ hr, std::system_category(), msg };
+}
+
+#include "Room.h"
+std::unique_ptr<Room> g_room;
+
+int ActiveBroadcast()
+{
+    return g_channel == kRoomChannel ? g_roomChannel : g_channel;
+}
+
+float ActivePower()
+{
+    return g_power * (g_channel == kRoomChannel ? g_roomPower : 1.0f);
+}
+
+void UpdateTitle()
+{
+    const wchar_t* title = g_channel == kRoomChannel
+        ? L"CRT TV - Room 11 | P: TV power | A/D: channel | Up/Down: volume | M: mute | Space: whole view"
+        : L"CRT TV";
+    std::wstring text = title;
+    if (g_channel == kRoomChannel && g_roomPoweringOff) text += L" - TV off";
+    if (g_audioLoading) text += L" - loading audio";
+    else if (!g_audioAvailable) text += L" - audio unavailable";
+    else if (g_volume == 0) text += L" - muted (M)";
+    SetWindowText(g_hwnd, text.c_str());
 }
 
 struct ResourceData
@@ -280,6 +312,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 			case VK_RIGHT:
 			{
 				g_channel = (g_channel + 1) % kChannelCount;
+				UpdateTitle();
 				g_channelTimer = kChannelTimerDuration;
 				if (g_power > 0 && !g_poweringOff) g_audio->Play(Audio::Channel);
 				break;
@@ -287,15 +320,37 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 			case VK_LEFT:
 			{
 				g_channel = (g_channel - 1 + kChannelCount) % kChannelCount;
+				UpdateTitle();
 				g_channelTimer = kChannelTimerDuration;
 				if (g_power > 0 && !g_poweringOff) g_audio->Play(Audio::Channel);
 				break;
 			}
+			case 'A':
+			case 'D':
+				if (g_channel == kRoomChannel) {
+					g_roomChannel = (g_roomChannel + (w == 'D' ? 1 : kBroadcastCount - 1)) % kBroadcastCount;
+					g_channelTimer = kChannelTimerDuration;
+					if (ActivePower() > 0 && !g_poweringOff && !g_roomPoweringOff) g_audio->Play(Audio::Channel);
+				}
+				break;
+			case 'P':
+				if (g_channel == kRoomChannel && !(l & (1LL << 30))) {
+					g_roomPoweringOff = !g_roomPoweringOff;
+					if (!g_roomPoweringOff) {
+						g_roomPower = kInitialPower;
+						g_channelTimer = kChannelTimerDuration;
+					}
+					if (g_power > 0 && !g_poweringOff)
+						g_audio->Play(g_roomPoweringOff ? Audio::PowerOff : Audio::PowerOn);
+					UpdateTitle();
+				}
+				break;
 			case VK_UP:
 			case VK_DOWN:
 				g_volume = std::clamp(g_volume + (w == VK_UP ? 1 : -1), 0, kMaxVolume);
 				if (g_volume > 0) g_previousVolume = g_volume;
 				ApplyVolume(h);
+				UpdateTitle();
 				break;
 			case VK_SPACE:
 			{
@@ -318,6 +373,7 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 					if (g_volume > 0) { g_previousVolume = g_volume; g_volume = 0; }
 					else g_volume = g_previousVolume;
 					ApplyVolume(h);
+					UpdateTitle();
 				}
 				break;
 		}
@@ -331,11 +387,14 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
     // Keep the MTA alive until the published audio engine has been destroyed.
     ComApartment apartment;
     struct AudioLifetime { ~AudioLifetime() { g_audio.reset(); } } audioLifetime;
-	WNDCLASS wc = {};
+	WNDCLASSEX wc = {};
+	wc.cbSize = sizeof(wc);
 	wc.lpfnWndProc = WndProc;
 	wc.hInstance = h;
 	wc.lpszClassName = L"CRT";
-	if (!RegisterClass(&wc))
+	wc.hIcon = LoadIcon(h, MAKEINTRESOURCE(IDI_CRT));
+	wc.hIconSm = LoadIcon(h, MAKEINTRESOURCE(IDI_SMALL));
+	if (!RegisterClassEx(&wc))
 		throw std::system_error(GetLastError(), std::system_category(), "RegisterClass failed");
 
 	g_hwnd = CreateWindow(wc.lpszClassName, L"CRT TV",
@@ -379,6 +438,9 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
         const bool hadChannelOSD = g_channelTimer > 0;
         const bool hadVolumeOSD = g_volumeTimer > 0;
         const float previousPower = g_power;
+        const float previousRoomPower = g_roomPower;
+		if (g_roomPoweringOff && g_roomPower > 0)
+			g_roomPower = std::max<float>(0.0f, g_roomPower - kPowerFadePerSecond * dt);
 		if (g_poweringOff && g_power > 0)
 			g_power = std::max<float>(0.0f, g_power - kPowerFadePerSecond * dt);
 
@@ -403,21 +465,24 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
             if (audio) g_audio = std::move(audio);
             g_audioLoading = false;
             g_audio->SetVolume(static_cast<float>(g_volume) / kMaxVolume);
-            SetWindowText(g_hwnd, !g_audioAvailable ? L"CRT TV - audio unavailable" :
-                g_volume == 0 ? L"CRT TV - muted (M)" : L"CRT TV");
-            if (g_power > 0 && !g_poweringOff) g_audio->Play(Audio::PowerOn);
+            UpdateTitle();
+            if (ActivePower() > 0 && !g_poweringOff
+                && (g_channel != kRoomChannel || !g_roomPoweringOff)) g_audio->Play(Audio::PowerOn);
         }
 
 		SYSTEMTIME localTime;
 		GetLocalTime(&localTime);
 		const int clockSeconds = localTime.wHour * 3600 + localTime.wMinute * 60 + localTime.wSecond;
-		g_audio->Update(kChannelPrograms[g_channel], g_power, clockSeconds);
+		g_audio->Update(kChannelPrograms[ActiveBroadcast()], ActivePower(), clockSeconds);
 
-        const int program = kChannelPrograms[g_channel];
+        const int program = kChannelPrograms[ActiveBroadcast()];
         g_dirty = g_dirty || previousPower != g_power
+            || (g_channel == kRoomChannel && previousRoomPower != g_roomPower)
             || hadChannelOSD != (g_channelTimer > 0) || hadVolumeOSD != (g_volumeTimer > 0);
-        const bool clockActive = program == 8 && g_power > 0;
-        const bool animated = g_power > 0 && (program < 3 || program == 9 || g_poweringOff);
+        const bool roomFading = g_channel == kRoomChannel && g_roomPoweringOff && g_roomPower > 0;
+        const bool clockActive = program == 8 && ActivePower() > 0;
+        const bool animated = g_power > 0 && (g_poweringOff || roomFading
+            || (ActivePower() > 0 && (program < 3 || program == 9)));
         if (clockActive && clockSeconds != lastRenderedSecond) g_dirty = true;
 
         // Wake for the next visible change or audio tick, otherwise sleep until input.
@@ -430,6 +495,7 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
         if (g_volumeTimer > 0) wakeIn(g_volumeTimer);
         if (clockActive) waitMs = (std::min)(waitMs, static_cast<DWORD>(1000 - localTime.wMilliseconds));
         if (g_poweringOff && g_power > 0) waitMs = (std::min)(waitMs, DWORD(16));
+        if (roomFading) waitMs = (std::min)(waitMs, DWORD(16));
         auto waitForInput = [&](DWORD timeout) {
             MsgWaitForMultipleObjectsEx(0, nullptr, timeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
         };
@@ -467,18 +533,32 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
                 continue;
             }
 			ResizeD3D(rc.right, rc.bottom);
+			const bool inRoom = g_channel == kRoomChannel;
+			if (inRoom && !g_room) {
+				g_room = std::make_unique<Room>();
+				g_room->Init(g_device.Get());
+			}
+			g_context->VSSetShader(g_vs.Get(), nullptr, 0);
+			g_context->PSSetShader(g_ps.Get(), nullptr, 0);
+			g_context->PSSetConstantBuffers(0, 1, g_cb.GetAddressOf());
+			ID3D11RenderTargetView* target = inRoom ? g_room->BroadcastTarget() : g_rtv.Get();
+			g_context->OMSetRenderTargets(1, &target, nullptr);
+			D3D11_VIEWPORT viewport = {0,0,
+				static_cast<float>(inRoom ? Room::BroadcastWidth : g_renderWidth),
+				static_cast<float>(inRoom ? Room::BroadcastHeight : g_renderHeight),0,1};
+			g_context->RSSetViewports(1, &viewport);
 			D3D11_MAPPED_SUBRESOURCE ms = {};
 			CheckHR(g_context->Map(g_cb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms), "Map failed");
 			CB* cb = reinterpret_cast<CB*>(ms.pData);
 
 			cb->time = t;
-			cb->width = static_cast<float>(rc.right);
-			cb->height = static_cast<float>(rc.bottom);
-			cb->channel = static_cast<float>(kChannelPrograms[g_channel]);
-			cb->power = g_power;
+			cb->width = viewport.Width;
+			cb->height = viewport.Height;
+			cb->channel = static_cast<float>(program);
+			cb->power = inRoom ? g_roomPower : g_power;
 			cb->channelTimer = g_channelTimer;
 			cb->clockSeconds = static_cast<float>(clockSeconds);
-			cb->channelNumber = static_cast<float>(g_channel);
+			cb->channelNumber = static_cast<float>(ActiveBroadcast());
 			cb->volume = static_cast<float>(g_volume) / kMaxVolume;
 			cb->volumeTimer = g_volumeTimer;
 			cb->reserved[0] = cb->reserved[1] = 0;
@@ -488,6 +568,8 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 
         // The full-screen triangle writes every pixel, including black borders.
 		g_context->Draw(3, 0);
+		if (g_channel == kRoomChannel)
+			g_room->Draw(g_device.Get(), g_context.Get(), g_rtv.Get(), g_renderWidth, g_renderHeight, g_power, g_roomPower);
         const HRESULT status = g_swapChain->Present(1, 0);
         CheckHR(status, "Present failed");
         occluded = status == DXGI_STATUS_OCCLUDED;

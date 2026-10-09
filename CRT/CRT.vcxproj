@@ -133,6 +133,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Audio.h" />
+    <ClInclude Include="Room.h" />
     <ClInclude Include="CRT.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="Resource.h" />
