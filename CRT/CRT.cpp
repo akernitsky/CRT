@@ -7,18 +7,30 @@
 #include <algorithm>
 #include <system_error>
 #include <stdexcept>
+#include <future>
+#include <memory>
+#include <cmath>
 #include "resource.h"
 #include "Audio.h"
 
 #pragma comment(lib,"d3d11.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"d3dcompiler.lib")
+#pragma comment(lib,"ole32.lib")
 
 using namespace Microsoft::WRL;
 
 HWND g_hwnd = nullptr;
-Audio g_audio;
+auto g_audio = std::make_unique<Audio>();
+bool g_audioLoading = true;
+bool g_dirty = true;
 bool g_audioAvailable = false;
+
+struct ComApartment
+{
+    HRESULT result = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    ~ComApartment() { if (SUCCEEDED(result)) CoUninitialize(); }
+};
 
 ComPtr<ID3D11Device> g_device;
 ComPtr<ID3D11DeviceContext> g_context;
@@ -64,9 +76,10 @@ struct CB
 
 void ApplyVolume(HWND window)
 {
-	g_audio.SetVolume(static_cast<float>(g_volume) / kMaxVolume);
+	g_audio->SetVolume(static_cast<float>(g_volume) / kMaxVolume);
 	g_volumeTimer = 3.0f;
-	SetWindowText(window, !g_audioAvailable ? L"CRT TV - audio unavailable" :
+	SetWindowText(window, g_audioLoading ? L"CRT TV - loading audio" :
+		!g_audioAvailable ? L"CRT TV - audio unavailable" :
 		g_volume == 0 ? L"CRT TV - muted (M)" : L"CRT TV");
 }
 
@@ -239,13 +252,26 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 {
 	switch(m)
 	{
-	case WM_DESTROY:
+	case WM_PAINT:
+        {
+            PAINTSTRUCT paint;
+            BeginPaint(h, &paint);
+            EndPaint(h, &paint);
+            g_dirty = true;
+            return 0;
+        }
+    case WM_SIZE:
+    case WM_DISPLAYCHANGE:
+        g_dirty = true;
+        break;
+    case WM_DESTROY:
 		PostQuitMessage(0);
 		break;
 	case WM_SETCURSOR:
 		SetCursor(NULL);
 		return TRUE;
 	case WM_KEYDOWN:
+		g_dirty = true;
 		switch(w)
 		{
 			case VK_ESCAPE:
@@ -255,14 +281,14 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 			{
 				g_channel = (g_channel + 1) % kChannelCount;
 				g_channelTimer = kChannelTimerDuration;
-				if (g_power > 0 && !g_poweringOff) g_audio.Play(Audio::Channel);
+				if (g_power > 0 && !g_poweringOff) g_audio->Play(Audio::Channel);
 				break;
 			}
 			case VK_LEFT:
 			{
 				g_channel = (g_channel - 1 + kChannelCount) % kChannelCount;
 				g_channelTimer = kChannelTimerDuration;
-				if (g_power > 0 && !g_poweringOff) g_audio.Play(Audio::Channel);
+				if (g_power > 0 && !g_poweringOff) g_audio->Play(Audio::Channel);
 				break;
 			}
 			case VK_UP:
@@ -278,10 +304,10 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 					g_poweringOff = false;
 					g_power = kInitialPower;
 					g_channelTimer = kChannelTimerDuration;
-					g_audio.Play(Audio::PowerOn);
+					g_audio->Play(Audio::PowerOn);
 				}
 				else {
-					if (!g_poweringOff) g_audio.Play(Audio::PowerOff);
+					if (!g_poweringOff) g_audio->Play(Audio::PowerOff);
 					g_poweringOff = true;
 				}
 				break;
@@ -302,6 +328,9 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 
 int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 {
+    // Keep the MTA alive until the published audio engine has been destroyed.
+    ComApartment apartment;
+    struct AudioLifetime { ~AudioLifetime() { g_audio.reset(); } } audioLifetime;
 	WNDCLASS wc = {};
 	wc.lpfnWndProc = WndProc;
 	wc.hInstance = h;
@@ -318,18 +347,45 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 	ShowWindow(g_hwnd, SW_SHOW);
 
 	InitD3D();
-	g_audioAvailable = g_audio.Init();
-	g_audio.SetVolume(static_cast<float>(g_volume) / kMaxVolume);
-	if (!g_audioAvailable) SetWindowText(g_hwnd, L"CRT TV - audio unavailable");
-	g_audio.Update(kChannelPrograms[g_channel], g_power);
-	g_audio.Play(Audio::PowerOn);
+    // The worker owns a separate Audio object until the future publishes it.
+    // Input can safely use the inactive object while samples are being generated.
+    auto audioInit = std::async(std::launch::async, []() -> std::unique_ptr<Audio> {
+        ComApartment workerApartment;
+        if (FAILED(workerApartment.result)) return nullptr;
+        try
+        {
+            auto audio = std::make_unique<Audio>();
+            if (audio->Init()) return audio;
+        }
+        catch (...) { /* Audio failure must not prevent silent operation. */ }
+        return nullptr;
+    });
+    SetWindowText(g_hwnd, L"CRT TV - loading audio");
 
-	auto start = std::chrono::high_resolution_clock::now();
+	auto start = std::chrono::steady_clock::now();
 	auto prev = start;
 	MSG msg = {};
+    bool occluded = false;
+    auto nextOcclusionTest = start;
+    int lastRenderedSecond = -1;
 
 	while (msg.message != WM_QUIT)
 	{
+		auto now = std::chrono::steady_clock::now();
+		float t = std::chrono::duration<float>(now - start).count();
+		float dt = std::chrono::duration<float>(now - prev).count();
+		prev = now;
+
+        const bool hadChannelOSD = g_channelTimer > 0;
+        const bool hadVolumeOSD = g_volumeTimer > 0;
+        const float previousPower = g_power;
+		if (g_poweringOff && g_power > 0)
+			g_power = std::max<float>(0.0f, g_power - kPowerFadePerSecond * dt);
+
+		if (g_channelTimer > 0)
+			g_channelTimer = std::max<float>(0.0f, g_channelTimer - 1.0f * dt);
+		g_volumeTimer = std::max<float>(0.0f, g_volumeTimer - dt);
+
 		while (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
 		{
 			if (msg.message == WM_QUIT)
@@ -340,21 +396,43 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 		if (msg.message == WM_QUIT)
 			break;
 
-		auto now = std::chrono::high_resolution_clock::now();
-		float t = std::chrono::duration<float>(now - start).count();
-		float dt = std::chrono::duration<float>(now - prev).count();
-		prev = now;
+        if (g_audioLoading && audioInit.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        {
+            auto audio = audioInit.get();
+            g_audioAvailable = audio != nullptr;
+            if (audio) g_audio = std::move(audio);
+            g_audioLoading = false;
+            g_audio->SetVolume(static_cast<float>(g_volume) / kMaxVolume);
+            SetWindowText(g_hwnd, !g_audioAvailable ? L"CRT TV - audio unavailable" :
+                g_volume == 0 ? L"CRT TV - muted (M)" : L"CRT TV");
+            if (g_power > 0 && !g_poweringOff) g_audio->Play(Audio::PowerOn);
+        }
 
-		if (g_poweringOff && g_power > 0)
-			g_power = std::max<float>(0.0f, g_power - kPowerFadePerSecond * dt);
-
-		if (g_channelTimer > 0)
-			g_channelTimer = std::max<float>(0.0f, g_channelTimer - 1.0f * dt);
-		g_volumeTimer = std::max<float>(0.0f, g_volumeTimer - dt);
 		SYSTEMTIME localTime;
 		GetLocalTime(&localTime);
 		const int clockSeconds = localTime.wHour * 3600 + localTime.wMinute * 60 + localTime.wSecond;
-		g_audio.Update(kChannelPrograms[g_channel], g_power, clockSeconds);
+		g_audio->Update(kChannelPrograms[g_channel], g_power, clockSeconds);
+
+        const int program = kChannelPrograms[g_channel];
+        g_dirty = g_dirty || previousPower != g_power
+            || hadChannelOSD != (g_channelTimer > 0) || hadVolumeOSD != (g_volumeTimer > 0);
+        const bool clockActive = program == 8 && g_power > 0;
+        const bool animated = g_power > 0 && (program < 3 || program == 9 || g_poweringOff);
+        if (clockActive && clockSeconds != lastRenderedSecond) g_dirty = true;
+
+        // Wake for the next visible change or audio tick, otherwise sleep until input.
+        DWORD waitMs = INFINITE;
+        auto wakeIn = [&](float seconds) {
+            waitMs = (std::min)(waitMs, static_cast<DWORD>((std::max)(1.0f, std::ceil(seconds * 1000))));
+        };
+        if (g_audioLoading) waitMs = 16;
+        if (g_channelTimer > 0) wakeIn(g_channelTimer);
+        if (g_volumeTimer > 0) wakeIn(g_volumeTimer);
+        if (clockActive) waitMs = (std::min)(waitMs, static_cast<DWORD>(1000 - localTime.wMilliseconds));
+        if (g_poweringOff && g_power > 0) waitMs = (std::min)(waitMs, DWORD(16));
+        auto waitForInput = [&](DWORD timeout) {
+            MsgWaitForMultipleObjectsEx(0, nullptr, timeout, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+        };
 
 		if (g_cb)
 		{
@@ -362,9 +440,32 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 			GetClientRect(g_hwnd, &rc);
 			if (IsIconic(g_hwnd) || rc.right <= 0 || rc.bottom <= 0)
 			{
-				MsgWaitForMultipleObjects(0, nullptr, FALSE, 16, QS_ALLINPUT);
+				waitForInput(waitMs);
 				continue;
 			}
+            if (occluded)
+            {
+                if (now >= nextOcclusionTest)
+                {
+                    const HRESULT status = g_swapChain->Present(0, DXGI_PRESENT_TEST);
+                    CheckHR(status, "Presentation visibility test failed");
+                    occluded = status == DXGI_STATUS_OCCLUDED;
+                    nextOcclusionTest = now + std::chrono::milliseconds(250);
+                    if (!occluded) g_dirty = true;
+                }
+                if (occluded)
+                {
+                    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(nextOcclusionTest - now).count();
+                    waitForInput((std::min)(waitMs, static_cast<DWORD>((std::max)(1LL, remaining))));
+                    continue;
+                }
+            }
+            if (rc.right != g_renderWidth || rc.bottom != g_renderHeight) g_dirty = true;
+            if (!g_dirty && !animated)
+            {
+                waitForInput(waitMs);
+                continue;
+            }
 			ResizeD3D(rc.right, rc.bottom);
 			D3D11_MAPPED_SUBRESOURCE ms = {};
 			CheckHR(g_context->Map(g_cb.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms), "Map failed");
@@ -385,10 +486,14 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 			g_context->Unmap(g_cb.Get(), 0);
 		}
 
-		float clear[4] = { 0,0,0,1 };
-		g_context->ClearRenderTargetView(g_rtv.Get(), clear);
+        // The full-screen triangle writes every pixel, including black borders.
 		g_context->Draw(3, 0);
-		CheckHR(g_swapChain->Present(1, 0), "Present failed");
+        const HRESULT status = g_swapChain->Present(1, 0);
+        CheckHR(status, "Present failed");
+        occluded = status == DXGI_STATUS_OCCLUDED;
+        if (occluded) nextOcclusionTest = now + std::chrono::milliseconds(250);
+        g_dirty = false;
+        lastRenderedSecond = clockSeconds;
 	}
 
 	return 0;

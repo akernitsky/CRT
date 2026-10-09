@@ -105,19 +105,7 @@ public:
             }
             if (FAILED(engine_->CreateSourceVoice(&effects_[effect], &format))) return false;
         }
-        if (FAILED(noiseVoice_->Start())) return false;
-        if (FAILED(toneVoice_->Start()))
-        {
-            noiseVoice_->Stop();
-            return false;
-        }
-        if (FAILED(distortedVoice_->Start()))
-        {
-            noiseVoice_->Stop();
-            toneVoice_->Stop();
-            return false;
-        }
-        if (FAILED(musicVoice_->Start())) return false;
+        // Start only the audible loop in Update, after the UI applies its volume.
         ready_ = true;
         return true;
     }
@@ -126,11 +114,17 @@ public:
     {
         if (!ready_) return;
         const float levels[] = {1.0f, 0.6f, 0.3f, 0.0f};
-        noiseVoice_->SetVolume((channel < 3 ? levels[channel] : 0.0f) * power);
-        toneVoice_->SetVolume(channel >= 3 && channel != 5 && channel != 8 && channel != 9 ? power * 0.5f : 0.0f);
-        musicVoice_->SetVolume(channel == 5 ? power : 0.0f);
-        distortedVoice_->SetVolume(channel == 9 ? power * 0.5f : 0.0f);
-        effects_[ClockTick]->SetVolume(channel == 8 ? power : 0.0f);
+        const float audiblePower = muted_ ? 0.0f : power;
+        UpdateLoop(noiseVoice_, 0, (channel < 3 ? levels[channel] : 0.0f) * audiblePower);
+        UpdateLoop(toneVoice_, 1, channel >= 3 && channel != 5 && channel != 8 && channel != 9 ? audiblePower * 0.5f : 0.0f);
+        UpdateLoop(musicVoice_, 2, channel == 5 ? audiblePower : 0.0f);
+        UpdateLoop(distortedVoice_, 3, channel == 9 ? audiblePower * 0.5f : 0.0f);
+        const float tickVolume = channel == 8 ? audiblePower : 0.0f;
+        if (tickVolume != tickVolume_)
+        {
+            effects_[ClockTick]->SetVolume(tickVolume);
+            tickVolume_ = tickVolume;
+        }
         if (clockSeconds >= 0)
         {
             if (lastClockSecond_ >= 0 && clockSeconds != lastClockSecond_
@@ -161,6 +155,19 @@ public:
     bool Muted() const { return muted_; }
 
 private:
+    void UpdateLoop(IXAudio2SourceVoice* voice, size_t index, float volume)
+    {
+        if (volume == loopVolumes_[index]) return;
+        if (volume <= 0)
+            voice->Stop(); // Keep the queued buffer and resume at its paused position.
+        else
+        {
+            voice->SetVolume(volume);
+            if (loopVolumes_[index] <= 0) voice->Start();
+        }
+        loopVolumes_[index] = volume;
+    }
+
     void MakeMusic()
     {
         // Original eight-bar lounge miniature, 96 BPM, C major with a turnaround.
@@ -173,18 +180,24 @@ private:
             const double frequency = 440.0 * std::pow(2.0,(midi - 69) / 12.0);
             const size_t first = static_cast<size_t>(start * rate);
             const size_t count = static_cast<size_t>((duration + 0.35) * rate);
+            std::array<double, 6> weights{}, decays{}, frequencies{};
+            const int harmonics = bass ? 4 : 6;
+            for (int h = 0; h < harmonics; ++h)
+            {
+                const int harmonic = h + 1;
+                weights[h] = bass ? 1.0 / (harmonic * harmonic) : 1.0 / std::pow(harmonic, 1.65);
+                decays[h] = bass ? 4.5 : 2.2 + harmonic * 0.9;
+                frequencies[h] = tau * frequency * harmonic * (1.0 + (bass ? 0 : harmonic * 0.00008));
+            }
             for (size_t i = 0; i < count; ++i)
             {
                 const double t = static_cast<double>(i) / rate;
                 const double attack = 1.0 - std::exp(-t * (bass ? 170.0 : 500.0));
                 const double release = std::exp(-(std::max)(0.0,t - duration) * 24.0);
                 double sample = 0;
-                for (int harmonic = 1; harmonic <= (bass ? 4 : 6); ++harmonic)
+                for (int h = 0; h < harmonics; ++h)
                 {
-                    const double weight = bass ? 1.0 / (harmonic * harmonic) : 1.0 / std::pow(harmonic,1.65);
-                    const double decay = bass ? 4.5 : 2.2 + harmonic * 0.9;
-                    sample += weight * std::exp(-t * decay)
-                        * std::sin(tau * frequency * harmonic * t * (1.0 + (bass ? 0 : harmonic * 0.00008)));
+                    sample += weights[h] * std::exp(-t * decays[h]) * std::sin(frequencies[h] * t);
                 }
                 music_[(first + i) % music_.size()] += static_cast<float>(gain * attack * release * sample);
             }
@@ -250,4 +263,6 @@ private:
     uint32_t seed_ = 0x12345678;
     bool ready_ = false;
     bool muted_ = false;
+    std::array<float, 4> loopVolumes_ = {};
+    float tickVolume_ = -1;
 };

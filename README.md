@@ -6,11 +6,11 @@ A Windows desktop CRT television simulator built with C++20, Win32, Direct3D 11,
 
 Sampled captures from the running application; the GIF is silent and pauses between demonstrations are shortened.
 
-| Philips PM5544 | УЭИТ |
+| Philips PM5544 | Live Danish clock |
 | --- | --- |
-| ![Philips test chart rendered by the pixel shader](docs/media/philips.png) | ![UEIT test chart rendered by the pixel shader](docs/media/ueit.png) |
-| **Live Danish clock** | **Volume display** |
-| ![Danmarks Radio clock with local time](docs/media/danish-clock.png) | ![Green segmented volume scale](docs/media/volume.png) |
+| ![Philips test chart rendered by the pixel shader](docs/media/philips.png) | ![Danmarks Radio clock with local time](docs/media/danish-clock.png) |
+| **Volume display** | **Mute display** |
+| ![Green segmented volume scale](docs/media/volume.png) | ![Green mute display](docs/media/mute.png) |
 
 Previews are refreshed before every merge. See [the capture workflow](docs/media/README.md).
 
