@@ -40,15 +40,20 @@ The window supports resizing and minimize/restore.
 
 ## Test charts
 
-Channels alternate between static and test charts in a fixed mixed order. Channels 2, 5 and 8 display static; channel 4 displays simple color bars and channel 10 displays multilevel broadcast color bars. Historical charts are generated entirely in the pixel shader, including labels and clock hands; no image textures are loaded.
+The ten channels mix animated static, color bars and historical test charts. Channels 2, 5 and 8 show static at different brightness levels; channel 4 has simple color bars, and channel 10 has multilevel broadcast color bars. The other channels feature four historical charts and a ghosted broadcast image. Charts are generated entirely in the pixel shader, including labels and clock hands; no image textures are loaded.
 
-| Channel | Chart |
+| Channel | Picture |
 | --- | --- |
 | 1 | Philips PM5544: square geometry grid, circle, PAL colour-difference patches, six colour bars, centre graticule, five frequency bands and six grayscale steps |
-| 6 | UEIT (УЭИТ): large circle, four resolution discs, two colour-bar rows, grayscale, alternating chroma patches, diagonal transition marks and frequency ruler |
-| 9 | TIT-0249 (ТИТ-0249): monochrome circle and grid, corner wedges, resolution markings, grayscale and concentric alignment targets |
+| 2 | Bright animated monochrome static |
 | 3 | Danmarks Radio clock ident: overlapping clock and grayscale discs, minute ticks and live hour, minute and second hands |
+| 4 | Simple full-screen color bars |
+| 5 | Medium-bright animated monochrome static |
+| 6 | UEIT (УЭИТ): large circle, four resolution discs, two colour-bar rows, grayscale, alternating chroma patches, diagonal transition marks and frequency ruler |
 | 7 | Colour bars with ghosting: a faint delayed image shifted to the right, including the station logo and local-time clock |
+| 8 | Dim animated monochrome static |
+| 9 | TIT-0249 (ТИТ-0249): monochrome circle and grid, corner wedges, resolution markings, grayscale and concentric alignment targets |
+| 10 | Multilevel broadcast color bars |
 
 The charts fit a 4:3 area when the window is resized and pass through the existing CRT curvature, glow and vignette. The DR clock uses the computer's local wall-clock time, sampled every frame, with a ticking second hand and a mechanical click on each second instead of a test tone. Channel 1 plays an original procedural lounge miniature: piano, plucked bass and brush percussion, 96 BPM, eight bars in a 20-second loop with wrapped note tails. Music and clock clicks obey mute and screen power. Channels 4, 6, 9 and 10 play the 1 kHz test tone.
 
