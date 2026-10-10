@@ -14,6 +14,9 @@ cbuffer CB : register(b0)
     float2 reserved;
 }
 
+Texture2D newsAtlas : register(t0);
+SamplerState newsSampler : register(s0);
+
 float rand(float2 co)
 {
     return frac(sin(dot(co, float2(12.9898, 78.233))) * 43758.5453);
@@ -176,6 +179,8 @@ uint2 GlyphBits(int c)
     case 84: bits = uint2(138547359u, 1u); break;
     case 85: bits = uint2(2736309809u, 3u); break;
     case 86: bits = uint2(353945137u, 1u); break;
+    case 87: bits = uint2(2002437681u, 4u); break;
+    case 89: bits = uint2(138553905u, 1u); break;
     case 128: bits = uint2(3809969215u, 3u); break;
     case 129: bits = uint2(1697204828u, 4u); break;
     case 130: bits = uint2(1664800561u, 4u); break;
@@ -456,6 +461,34 @@ float3 GhostBroadcast(float2 p)
         + BroadcastImage(p - float2(delay + 0.0007,0))) / 3;
     return direct * 0.82 + echo * 0.18;
 }
+float3 NewsBroadcast(float2 p)
+{
+    // Hold the locked studio frame; blend only the presenter to avoid scenery jumps.
+    float cycle = fmod(time, 7.0);
+    int pose = cycle > 5.5 ? 3 : ((int)floor(time * 5.0) % 3 == 0 ? 0 : 1);
+    if (cycle > 3.8 && cycle < 3.96) pose = 2;
+    float2 inset = clamp(p, 0.001, 0.999);
+    float3 base = newsAtlas.Sample(newsSampler, inset * 0.5).rgb;
+    float2 tile = float2(pose % 2, pose / 2);
+    float3 face = newsAtlas.Sample(newsSampler, (inset + tile) * 0.5).rgb;
+    float region = (1-smoothstep(0.27,0.34,abs(p.x-0.5)))
+        * (1-smoothstep(0.76,0.85,p.y));
+    float3 col = lerp(base,face,region);
+    // Broadcast graphics are rendered at native resolution over both styles.
+    if (p.y > 0.80 && p.y < 0.91) col = float3(0.025,0.08,0.19);
+    if (p.y >= 0.91) col = float3(0.75,0.06,0.09);
+    const int name[14] = {75,65,84,89,65,32,65,78,68,82,69,69,86,65};
+    float2 q = (p-float2(0.07,0.825))/float2(0.005,0.007);
+    int n = (int)floor(q.x/6);
+    float ink = n>=0 && n<14 ? Glyph(float2(q.x-n*6,q.y),name[clamp(n,0,13)]) : 0;
+    const int ticker[33] = {67,82,84,32,78,69,87,83,32,32,65,78,73,77,65,84,69,68,32,68,69,77,79,32,32,78,32,83,84,89,76,69,32};
+    q = float2(p.x/0.004 + time*12,p.y/0.006-155);
+    n = (int)floor(q.x/6);
+    if(p.y>0.92) ink = max(ink,Glyph(float2(q.x-n*6,q.y),ticker[n%33]));
+    col = lerp(col,1,saturate(ink));
+    col *= 0.96+0.04*sin(p.y*576*3.14159265);
+    return col;
+}
 // Fit the reference plane without stretching circles on wide or tall windows.
 float3 TestTable(float2 uv, int kind)
 {
@@ -469,6 +502,7 @@ float3 TestTable(float2 uv, int kind)
     else if(kind==6) col = UEIT(ref);
     else if(kind==7) col = TIT0249(ref);
     else if(kind==8) col = DanishClock(ref);
+    else if(kind==10) col = NewsBroadcast(p);
     else col = GhostBroadcast(p);
     return inside ? col : float3(0,0,0);
 }
@@ -527,14 +561,14 @@ float4 main(float4 pos : SV_POSITION) : SV_TARGET
     if (channelTimer > 0.0)
     {
         // Ensure we use a signed integer and a known non-negative integer index.
-        int digit = clamp((int)floor(channelNumber), 0, 9) + 1;
+        int digit = clamp((int)floor(channelNumber), 0, 10) + 1;
         float on;
-        if (digit == 10)
+        if (digit >= 10)
         {
             float2 p = screenUV - float2(0.85,0.12);
             p.x *= width / height;
             on = max(Digit(p / float2(0.04,0.08),1),
-                Digit((p - float2(0.05,0)) / float2(0.04,0.08),0));
+                Digit((p - float2(0.05,0)) / float2(0.04,0.08),digit % 10));
         }
         else on = DrawDigit(screenUV, digit);
 

@@ -44,14 +44,15 @@ UINT g_renderWidth = 0;
 UINT g_renderHeight = 0;
 
 
-constexpr int kBroadcastCount = 10;
+constexpr int kBroadcastCount = 11;
 constexpr int kRoomChannel = kBroadcastCount;
 constexpr int kChannelCount = kBroadcastCount + 1;
-constexpr int kChannelPrograms[kBroadcastCount] = { 5, 0, 8, 3, 1, 6, 9, 2, 7, 4 };
+constexpr int kChannelPrograms[kBroadcastCount] = { 5, 0, 8, 3, 1, 6, 9, 2, 7, 4, 10 };
 constexpr float kInitialPower = 1.0f;
 constexpr float kPowerFadePerSecond = 1.0f;
 constexpr float kChannelTimerDuration = 3.0f;
 
+bool g_newsRealistic = false;
 int g_channel = 0;
 int g_roomChannel = 0;
 float g_roomPower = kInitialPower;
@@ -111,8 +112,8 @@ float ActivePower()
 void UpdateTitle()
 {
     const wchar_t* title = g_channel == kRoomChannel
-        ? L"CRT TV - Room 11 | P: TV power | A/D: channel | Up/Down: volume | M: mute | Space: whole view"
-        : L"CRT TV";
+        ? L"CRT TV - Room 12 | P: TV power | A/D: channel | N: news style | Up/Down: volume | M: mute | Space: whole view"
+        : ActiveBroadcast() == 10 ? (g_newsRealistic ? L"CRT TV - News 11 | Realistic | N: illustrated" : L"CRT TV - News 11 | Illustrated | N: realistic") : L"CRT TV";
     std::wstring text = title;
     if (g_channel == kRoomChannel && g_roomPoweringOff) text += L" - TV off";
     if (g_audioLoading) text += L" - loading audio";
@@ -196,6 +197,9 @@ void LoadVertexShaderFromResource(HINSTANCE hInstance, ID3D11Device* device, ID3
 			return dev->CreateVertexShader(data, size, nullptr, out);
 		});
 }
+
+#include "News.h"
+News g_news;
 
 void ResizeD3D(UINT width, UINT height)
 {
@@ -306,7 +310,13 @@ LRESULT CALLBACK WndProc(HWND h, UINT m, WPARAM w, LPARAM l)
 		g_dirty = true;
 		switch(w)
 		{
-			case VK_ESCAPE:
+			case 'N':
+                if (ActiveBroadcast() == 10 && !(l & (1LL << 30))) {
+                    g_newsRealistic = !g_newsRealistic;
+                    UpdateTitle();
+                }
+                break;
+            case VK_ESCAPE:
 				PostQuitMessage(0);
 				break;
 			case VK_RIGHT:
@@ -397,8 +407,22 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 	if (!RegisterClassEx(&wc))
 		throw std::system_error(GetLastError(), std::system_category(), "RegisterClass failed");
 
+    // Size the outer window in the same coordinate space as CreateWindow.
+    // rcWork excludes the taskbar, including on monitors with display scaling.
+    POINT cursor = {};
+    GetCursorPos(&cursor);
+    MONITORINFO monitor = {};
+    monitor.cbSize = sizeof(monitor);
+    CheckHR(GetMonitorInfo(MonitorFromPoint(cursor, MONITOR_DEFAULTTOPRIMARY), &monitor)
+        ? S_OK : HRESULT_FROM_WIN32(GetLastError()), "Monitor work area unavailable");
+    const LONG availableWidth = monitor.rcWork.right - monitor.rcWork.left;
+    const LONG availableHeight = monitor.rcWork.bottom - monitor.rcWork.top;
+    const int windowWidth = (std::min)(1920L, availableWidth * 9 / 10);
+    const int windowHeight = (std::min)(1080L, availableHeight * 9 / 10);
+    const int windowX = monitor.rcWork.left + (availableWidth - windowWidth) / 2;
+    const int windowY = monitor.rcWork.top + (availableHeight - windowHeight) / 2;
 	g_hwnd = CreateWindow(wc.lpszClassName, L"CRT TV",
-		WS_OVERLAPPEDWINDOW, 100, 100, 1920, 1080,
+		WS_OVERLAPPEDWINDOW, windowX, windowY, windowWidth, windowHeight,
 		nullptr, nullptr, h, nullptr);
 	if (!g_hwnd)
 		throw std::system_error(GetLastError(), std::system_category(), "CreateWindow failed");
@@ -406,6 +430,7 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 	ShowWindow(g_hwnd, SW_SHOW);
 
 	InitD3D();
+    g_news.Init(g_device.Get());
     // The worker owns a separate Audio object until the future publishes it.
     // Input can safely use the inactive object while samples are being generated.
     auto audioInit = std::async(std::launch::async, []() -> std::unique_ptr<Audio> {
@@ -482,7 +507,7 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
         const bool roomFading = g_channel == kRoomChannel && g_roomPoweringOff && g_roomPower > 0;
         const bool clockActive = program == 8 && ActivePower() > 0;
         const bool animated = g_power > 0 && (g_poweringOff || roomFading
-            || (ActivePower() > 0 && (program < 3 || program == 9)));
+            || (ActivePower() > 0 && (program < 3 || program == 9 || program == 10)));
         if (clockActive && clockSeconds != lastRenderedSecond) g_dirty = true;
 
         // Wake for the next visible change or audio tick, otherwise sleep until input.
@@ -541,6 +566,7 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 			g_context->VSSetShader(g_vs.Get(), nullptr, 0);
 			g_context->PSSetShader(g_ps.Get(), nullptr, 0);
 			g_context->PSSetConstantBuffers(0, 1, g_cb.GetAddressOf());
+			g_news.Bind(g_context.Get(), g_newsRealistic);
 			ID3D11RenderTargetView* target = inRoom ? g_room->BroadcastTarget() : g_rtv.Get();
 			g_context->OMSetRenderTargets(1, &target, nullptr);
 			D3D11_VIEWPORT viewport = {0,0,
@@ -561,7 +587,7 @@ int WINAPI WinMain(HINSTANCE h, HINSTANCE, LPSTR, int) try
 			cb->channelNumber = static_cast<float>(ActiveBroadcast());
 			cb->volume = static_cast<float>(g_volume) / kMaxVolume;
 			cb->volumeTimer = g_volumeTimer;
-			cb->reserved[0] = cb->reserved[1] = 0;
+			cb->reserved[0] = g_newsRealistic ? 1.0f : 0.0f; cb->reserved[1] = 0;
 
 			g_context->Unmap(g_cb.Get(), 0);
 		}

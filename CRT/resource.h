@@ -27,3 +27,6 @@
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
 #endif
+
+#define IDR_NEWS_ILLUSTRATED 134
+#define IDR_NEWS_REALISTIC 135
