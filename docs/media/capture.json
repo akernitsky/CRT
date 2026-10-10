@@ -1,7 +1,7 @@
 {
   "captured_on": "2026-10-10",
-  "build": "Release x64; channel 11 presenter and channel 12 room",
-  "executable_sha256": "AA91ABA2D99023293A8F3EF171915FC4FA0157ACAE5F0098568AE6B76833A27F",
+  "build": "Release x64; narrowed-face presenter on channel 11 and room on channel 12",
+  "executable_sha256": "8C3BB62136BF6D5CCC1DF9FAB19176F814011D372E1AAC0C7FFEA9E877DBBCC1",
   "crop": [
     2,
     100,
@@ -9,47 +9,71 @@
     1232
   ],
   "screenshots": {
-    "news-illustrated.png": "illustrated-0.jpg",
-    "news-realistic.png": "realistic-1.jpg",
-    "room.png": "room-news.jpg",
-    "room-off.png": "room-off.jpg",
-    "philips.png": "philips.jpg",
-    "danish-clock.png": "clock-1.jpg",
-    "volume.png": "volume.jpg",
-    "mute.png": "mute.jpg"
+    "news-illustrated.png": "illustrated-final-0.png",
+    "news-realistic.png": "realistic-final-0.png",
+    "room.png": "room-news-final.png",
+    "room-off.png": "room-off-final.png",
+    "philips.png": "philips-final.png",
+    "danish-clock.png": "clock-final-1.png",
+    "volume.png": "volume-final.png",
+    "mute.png": "mute-final.png"
   },
   "animation": [
-    { "file": "philips.jpg", "duration_ms": 900 },
-    { "file": "noise-0.jpg", "duration_ms": 220 },
-    { "file": "noise-1.jpg", "duration_ms": 220 },
-    { "file": "noise-2.jpg", "duration_ms": 220 },
-    { "file": "noise-3.jpg", "duration_ms": 220 },
-    { "file": "clock-1.jpg", "duration_ms": 900 },
-    { "file": "clock-2.jpg", "duration_ms": 900 },
-    { "file": "switch-11.jpg", "duration_ms": 700 },
-    { "file": "illustrated-0.jpg", "duration_ms": 350 },
-    { "file": "illustrated-1.jpg", "duration_ms": 350 },
-    { "file": "illustrated-2.jpg", "duration_ms": 350 },
-    { "file": "illustrated-3.jpg", "duration_ms": 350 },
-    { "file": "illustrated-4.jpg", "duration_ms": 350 },
-    { "file": "illustrated-5.jpg", "duration_ms": 350 },
-    { "file": "illustrated-6.jpg", "duration_ms": 350 },
-    { "file": "illustrated-7.jpg", "duration_ms": 350 },
-    { "file": "illustrated-8.jpg", "duration_ms": 350 },
-    { "file": "realistic-0.jpg", "duration_ms": 350 },
-    { "file": "realistic-1.jpg", "duration_ms": 350 },
-    { "file": "realistic-2.jpg", "duration_ms": 350 },
-    { "file": "realistic-3.jpg", "duration_ms": 350 },
-    { "file": "realistic-4.jpg", "duration_ms": 350 },
-    { "file": "realistic-5.jpg", "duration_ms": 350 },
-    { "file": "realistic-6.jpg", "duration_ms": 350 },
-    { "file": "realistic-7.jpg", "duration_ms": 350 },
-    { "file": "realistic-8.jpg", "duration_ms": 350 },
-    { "file": "room-news.jpg", "duration_ms": 1100 },
-    { "file": "room-illustrated.jpg", "duration_ms": 1100 },
-    { "file": "room-off.jpg", "duration_ms": 900 },
-    { "file": "room-philips.jpg", "duration_ms": 900 },
-    { "file": "volume.jpg", "duration_ms": 850 },
-    { "file": "mute.jpg", "duration_ms": 850 }
+    {
+      "file": "philips-final.png",
+      "duration_ms": 900
+    },
+    {
+      "file": "noise-final-0.png",
+      "duration_ms": 220
+    },
+    {
+      "file": "noise-final-1.png",
+      "duration_ms": 220
+    },
+    {
+      "file": "noise-final-2.png",
+      "duration_ms": 220
+    },
+    {
+      "file": "noise-final-3.png",
+      "duration_ms": 220
+    },
+    {
+      "file": "clock-final-0.png",
+      "duration_ms": 900
+    },
+    {
+      "file": "clock-final-1.png",
+      "duration_ms": 900
+    },
+    {
+      "file": "illustrated-final-0.png",
+      "duration_ms": 500
+    },
+    {
+      "file": "realistic-final-0.png",
+      "duration_ms": 500
+    },
+    {
+      "file": "room-illustrated-final.png",
+      "duration_ms": 900
+    },
+    {
+      "file": "room-news-final.png",
+      "duration_ms": 900
+    },
+    {
+      "file": "room-off-final.png",
+      "duration_ms": 700
+    },
+    {
+      "file": "volume-final.png",
+      "duration_ms": 700
+    },
+    {
+      "file": "mute-final.png",
+      "duration_ms": 700
+    }
   ]
 }
