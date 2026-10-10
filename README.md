@@ -8,7 +8,7 @@ A Windows desktop CRT television simulator built with C++20, Win32, Direct3D 11,
 | --- | --- |
 | ![Illustrated Katya Andreeva](docs/media/news-illustrated.png) | ![Realistic Katya Andreeva](docs/media/news-realistic.png) |
 
-Press **N** on channel 11 to compare the two animated styles. The room is now channel **12**.
+Press **N** on channel 11 to compare the two animated styles. Katya's revised likeness has a slimmer oval face, narrower cheeks, and a tapered jaw while keeping the side-parted hairstyle from the reference. The room is now channel **12**.
 
 | Room TV on | Room TV off (P) |
 | --- | --- |
