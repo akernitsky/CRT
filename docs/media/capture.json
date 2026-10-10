@@ -1,81 +1,55 @@
 {
-  "captured_on": "2026-10-09",
-  "build": "Release x64, independent inner TV power",
-  "executable_sha256": "6242ADEBBD0DD57975F968BCEC3EB50AE1E3365CBD8439AF3E100D6E8102CB4F",
+  "captured_on": "2026-10-10",
+  "build": "Release x64; channel 11 presenter and channel 12 room",
+  "executable_sha256": "AA91ABA2D99023293A8F3EF171915FC4FA0157ACAE5F0098568AE6B76833A27F",
   "crop": [
     2,
-    90,
-    2558,
-    1378
+    100,
+    2284,
+    1232
   ],
   "screenshots": {
-    "room.png": "room-philips.png",
-    "room-off.png": "room-tv-off.png",
-    "philips.png": "flat-philips.png",
-    "danish-clock.png": "flat-clock.png",
-    "volume.png": "flat-volume.png",
-    "mute.png": "flat-mute.png"
+    "news-illustrated.png": "illustrated-0.jpg",
+    "news-realistic.png": "realistic-1.jpg",
+    "room.png": "room-news.jpg",
+    "room-off.png": "room-off.jpg",
+    "philips.png": "philips.jpg",
+    "danish-clock.png": "clock-1.jpg",
+    "volume.png": "volume.jpg",
+    "mute.png": "mute.jpg"
   },
   "animation": [
-    {
-      "file": "flat-philips.png",
-      "duration_ms": 900
-    },
-    {
-      "file": "room-philips.png",
-      "duration_ms": 1200
-    },
-    {
-      "file": "room-tv-off.png",
-      "duration_ms": 1300
-    },
-    {
-      "file": "room-tv-on.png",
-      "duration_ms": 800
-    },
-    {
-      "file": "room-snow-0.png",
-      "duration_ms": 180
-    },
-    {
-      "file": "room-snow-1.png",
-      "duration_ms": 180
-    },
-    {
-      "file": "room-snow-2.png",
-      "duration_ms": 180
-    },
-    {
-      "file": "room-snow-3.png",
-      "duration_ms": 180
-    },
-    {
-      "file": "room-clock-0.png",
-      "duration_ms": 800
-    },
-    {
-      "file": "room-clock-1.png",
-      "duration_ms": 800
-    },
-    {
-      "file": "room-clock-2.png",
-      "duration_ms": 800
-    },
-    {
-      "file": "room-volume.png",
-      "duration_ms": 1000
-    },
-    {
-      "file": "room-mute.png",
-      "duration_ms": 1000
-    },
-    {
-      "file": "room-unmute.png",
-      "duration_ms": 800
-    },
-    {
-      "file": "flat-clock.png",
-      "duration_ms": 900
-    }
+    { "file": "philips.jpg", "duration_ms": 900 },
+    { "file": "noise-0.jpg", "duration_ms": 220 },
+    { "file": "noise-1.jpg", "duration_ms": 220 },
+    { "file": "noise-2.jpg", "duration_ms": 220 },
+    { "file": "noise-3.jpg", "duration_ms": 220 },
+    { "file": "clock-1.jpg", "duration_ms": 900 },
+    { "file": "clock-2.jpg", "duration_ms": 900 },
+    { "file": "switch-11.jpg", "duration_ms": 700 },
+    { "file": "illustrated-0.jpg", "duration_ms": 350 },
+    { "file": "illustrated-1.jpg", "duration_ms": 350 },
+    { "file": "illustrated-2.jpg", "duration_ms": 350 },
+    { "file": "illustrated-3.jpg", "duration_ms": 350 },
+    { "file": "illustrated-4.jpg", "duration_ms": 350 },
+    { "file": "illustrated-5.jpg", "duration_ms": 350 },
+    { "file": "illustrated-6.jpg", "duration_ms": 350 },
+    { "file": "illustrated-7.jpg", "duration_ms": 350 },
+    { "file": "illustrated-8.jpg", "duration_ms": 350 },
+    { "file": "realistic-0.jpg", "duration_ms": 350 },
+    { "file": "realistic-1.jpg", "duration_ms": 350 },
+    { "file": "realistic-2.jpg", "duration_ms": 350 },
+    { "file": "realistic-3.jpg", "duration_ms": 350 },
+    { "file": "realistic-4.jpg", "duration_ms": 350 },
+    { "file": "realistic-5.jpg", "duration_ms": 350 },
+    { "file": "realistic-6.jpg", "duration_ms": 350 },
+    { "file": "realistic-7.jpg", "duration_ms": 350 },
+    { "file": "realistic-8.jpg", "duration_ms": 350 },
+    { "file": "room-news.jpg", "duration_ms": 1100 },
+    { "file": "room-illustrated.jpg", "duration_ms": 1100 },
+    { "file": "room-off.jpg", "duration_ms": 900 },
+    { "file": "room-philips.jpg", "duration_ms": 900 },
+    { "file": "volume.jpg", "duration_ms": 850 },
+    { "file": "mute.jpg", "duration_ms": 850 }
   ]
 }

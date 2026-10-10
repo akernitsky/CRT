@@ -116,7 +116,7 @@ public:
         const float levels[] = {1.0f, 0.6f, 0.3f, 0.0f};
         const float audiblePower = muted_ ? 0.0f : power;
         UpdateLoop(noiseVoice_, 0, (channel < 3 ? levels[channel] : 0.0f) * audiblePower);
-        UpdateLoop(toneVoice_, 1, channel >= 3 && channel != 5 && channel != 8 && channel != 9 ? audiblePower * 0.5f : 0.0f);
+        UpdateLoop(toneVoice_, 1, channel >= 3 && channel < 10 && channel != 5 && channel != 8 && channel != 9 ? audiblePower * 0.5f : 0.0f);
         UpdateLoop(musicVoice_, 2, channel == 5 ? audiblePower : 0.0f);
         UpdateLoop(distortedVoice_, 3, channel == 9 ? audiblePower * 0.5f : 0.0f);
         const float tickVolume = channel == 8 ? audiblePower : 0.0f;
